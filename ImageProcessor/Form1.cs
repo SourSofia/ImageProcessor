@@ -535,13 +535,56 @@ namespace ImageProcessor
         {
             if (pictureBox3.Image != null)
             {
-                pictureBox3.Image.Dispose(); // free memory
-                pictureBox3.Image = null;    // clear the PictureBox
+                pictureBox3.Image.Dispose(); 
+                pictureBox3.Image = null;   
             }
 
-            // Optional: also clear the reference to the background
+            
             currentBackground?.Dispose();
             currentBackground = null;
+        }
+
+        private void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (pictureBox2.Image == null)
+            {
+                MessageBox.Show("No processed image to save!", "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using (SaveFileDialog sfd = new SaveFileDialog())
+            {
+                sfd.Filter = "PNG Image|*.png|JPEG Image|*.jpg|Bitmap Image|*.bmp";
+                sfd.Title = "Save Processed Image";
+
+              
+                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                sfd.FileName = $"processed_image_{timestamp}";
+
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        using (Bitmap bmp = new Bitmap(pictureBox2.Image))
+                        {
+                            System.Drawing.Imaging.ImageFormat format = System.Drawing.Imaging.ImageFormat.Png;
+
+                            if (sfd.FileName.ToLower().EndsWith(".jpg") || sfd.FileName.ToLower().EndsWith(".jpeg"))
+                                format = System.Drawing.Imaging.ImageFormat.Jpeg;
+                            else if (sfd.FileName.ToLower().EndsWith(".bmp"))
+                                format = System.Drawing.Imaging.ImageFormat.Bmp;
+
+                            bmp.Save(sfd.FileName, format);
+                        }
+
+                        MessageBox.Show("Image saved successfully!", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Failed to save image: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
         }
 
 
