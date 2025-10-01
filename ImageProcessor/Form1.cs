@@ -521,46 +521,56 @@ namespace ImageProcessor
 
         private Bitmap ApplyConvolution(Bitmap source, double[,] kernel, double factor = 1.0, int bias = 0)
         {
-            Bitmap output = new Bitmap(source.Width, source.Height);
-
             int width = source.Width;
             int height = source.Height;
-            int kernelSize = 3;
+            Bitmap output = new Bitmap(width, height, PixelFormat.Format24bppRgb);
 
-            //MessageBox.Show("Convolution called!");
+            Rectangle rect = new Rectangle(0, 0, width, height);
+            BitmapData srcData = source.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+            BitmapData dstData = output.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+
+            int stride = srcData.Stride;
+            int bytes = stride * height;
+            byte[] srcBuffer = new byte[bytes];
+            byte[] dstBuffer = new byte[bytes];
+
+            Marshal.Copy(srcData.Scan0, srcBuffer, 0, bytes);
+            source.UnlockBits(srcData);
+
+            int kCenter = 1; // kernel is 3x3
 
             for (int y = 1; y < height - 1; y++)
             {
                 for (int x = 1; x < width - 1; x++)
                 {
-                    double r = 0.0, g = 0.0, b = 0.0;
+                    double r = 0, g = 0, b = 0;
+                    int pos = y * stride + x * 3;
 
-                    for (int ky = 0; ky < kernelSize; ky++)
+                    for (int ky = -1; ky <= 1; ky++)
                     {
-                        for (int kx = 0; kx < kernelSize; kx++)
+                        for (int kx = -1; kx <= 1; kx++)
                         {
-                            int px = x + (kx - 1);
-                            int py = y + (ky - 1);
+                            int pixelPos = (y + ky) * stride + (x + kx) * 3;
+                            double weight = kernel[ky + kCenter, kx + kCenter];
 
-                            Color pixel = source.GetPixel(px, py);
-
-                            r += pixel.R * kernel[ky, kx];
-                            g += pixel.G * kernel[ky, kx];
-                            b += pixel.B * kernel[ky, kx];
+                            b += srcBuffer[pixelPos] * weight;
+                            g += srcBuffer[pixelPos + 1] * weight;
+                            r += srcBuffer[pixelPos + 2] * weight;
                         }
                     }
 
-                    int rr = Math.Min(Math.Max((int)(factor * r + bias), 0), 255);
-                    int gg = Math.Min(Math.Max((int)(factor * g + bias), 0), 255);
-                    int bb = Math.Min(Math.Max((int)(factor * b + bias), 0), 255);
-
-                    output.SetPixel(x, y, Color.FromArgb(rr, gg, bb));
+                    dstBuffer[pos] = (byte)Math.Min(Math.Max((int)(factor * b + bias), 0), 255);
+                    dstBuffer[pos + 1] = (byte)Math.Min(Math.Max((int)(factor * g + bias), 0), 255);
+                    dstBuffer[pos + 2] = (byte)Math.Min(Math.Max((int)(factor * r + bias), 0), 255);
                 }
             }
 
-            //MessageBox.Show("Convolution results!");
+            Marshal.Copy(dstBuffer, 0, dstData.Scan0, bytes);
+            output.UnlockBits(dstData);
+
             return output;
         }
+
 
 
         private void pictureBox2_Click(object sender, EventArgs e){}
