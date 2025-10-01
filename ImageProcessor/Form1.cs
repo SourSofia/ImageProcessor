@@ -15,7 +15,17 @@ public enum FilterType
     Invert,
     Sepia,
     Histogram,
-    Subtract
+    Subtract,
+    Smooth,
+    GaussianBlur,
+    Sharpen,
+    MeanRemoval,
+    HorzVertical,
+    AllDirections,
+    Emboss,
+    Lossy,
+    HorizontalOnly,
+    VerticalOnly
 }
 
 namespace ImageProcessor
@@ -370,53 +380,185 @@ namespace ImageProcessor
 
         private Bitmap ApplyFilterFast(Bitmap input, FilterType filter)
         {
-            Bitmap output = new Bitmap(input.Width, input.Height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-            var rect = new Rectangle(0, 0, input.Width, input.Height);
+            Bitmap output;
 
-            var inputData = input.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-            var outputData = output.LockBits(rect, System.Drawing.Imaging.ImageLockMode.WriteOnly, output.PixelFormat);
-
-            int bytes = Math.Abs(inputData.Stride) * input.Height;
-            byte[] pixelBuffer = new byte[bytes];
-            byte[] resultBuffer = new byte[bytes];
-
-            System.Runtime.InteropServices.Marshal.Copy(inputData.Scan0, pixelBuffer, 0, bytes);
-            input.UnlockBits(inputData);
-
-            for (int i = 0; i < pixelBuffer.Length; i += 3)
+            switch (filter)
             {
-                byte b = pixelBuffer[i];
-                byte g = pixelBuffer[i + 1];
-                byte r = pixelBuffer[i + 2];
+                case FilterType.Smooth:
+                    output = ApplyConvolution(input, new double[,] {
+                {1, 1, 1},
+                {1, 1, 1},
+                {1, 1, 1}}, 1.0 / 9.0);
+                    break;
 
-                byte nr = r, ng = g, nb = b;
+                case FilterType.GaussianBlur:
+                    output = ApplyConvolution(input, new double[,] {
+                {1, 2, 1},
+                {2, 4, 2},
+                {1, 2, 1}}, 1.0 / 16.0);
+                    break;
 
-                switch (filter)
-                {
-                    case FilterType.Grayscale:
-                        byte gray = (byte)((r + g + b) / 3);
-                        nr = ng = nb = gray;
-                        break;
-                    case FilterType.Invert:
-                        nr = (byte)(255 - r);
-                        ng = (byte)(255 - g);
-                        nb = (byte)(255 - b);
-                        break;
-                    case FilterType.Sepia:
-                        nr = (byte)Math.Min(255, (0.393 * r + 0.769 * g + 0.189 * b));
-                        ng = (byte)Math.Min(255, (0.349 * r + 0.686 * g + 0.168 * b));
-                        nb = (byte)Math.Min(255, (0.272 * r + 0.534 * g + 0.131 * b));
-                        break;
-                }
+                case FilterType.Sharpen:
+                    output = ApplyConvolution(input, new double[,] {
+                { 0, -1,  0},
+                {-1,  5, -1},
+                { 0, -1,  0}
+            });
+                    break;
 
-                resultBuffer[i] = nb;
-                resultBuffer[i + 1] = ng;
-                resultBuffer[i + 2] = nr;
+                case FilterType.MeanRemoval:
+                    output = ApplyConvolution(input, new double[,] {
+                {-1, -1, -1},
+                {-1,  9, -1},
+                {-1, -1, -1}
+            });
+                    break;
+
+                case FilterType.HorzVertical:
+                    output = ApplyConvolution(input, new double[,] {
+                {-1,  0,  1},
+                { 0,  0,  0},
+                { 1,  0, -1}
+            });
+                    break;
+
+                case FilterType.AllDirections:
+                    output = ApplyConvolution(input, new double[,] {
+                { 1,  1,  1},
+                { 1, -8,  1},
+                { 1,  1,  1}
+            });
+                    break;
+
+                case FilterType.Emboss:
+                    output = ApplyConvolution(input, new double[,] {
+                {-2, -1,  0},
+                {-1,  1,  1},
+                { 0,  1,  2}
+            });
+                    break;
+
+                case FilterType.Lossy:
+                    output = ApplyConvolution(input, new double[,] {
+                { 1,  1,  1},
+                { 1, -7,  1},
+                { 1,  1,  1}
+            });
+                    break;
+
+                case FilterType.HorizontalOnly:
+                    output = ApplyConvolution(input, new double[,] {
+                {-1, -2, -1},
+                { 0,  0,  0},
+                { 1,  2,  1}
+            });
+                    break;
+
+                case FilterType.VerticalOnly:
+                    output = ApplyConvolution(input, new double[,] {
+                {-1,  0,  1},
+                {-2,  0,  2},
+                {-1,  0,  1}
+            });
+                    break;
+
+                default:
+                    // Non-convolution filters handled here
+                    output = new Bitmap(input.Width, input.Height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+                    var rect = new Rectangle(0, 0, input.Width, input.Height);
+
+                    var inputData = input.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+                    var outputData = output.LockBits(rect, System.Drawing.Imaging.ImageLockMode.WriteOnly, output.PixelFormat);
+
+                    int bytes = Math.Abs(inputData.Stride) * input.Height;
+                    byte[] pixelBuffer = new byte[bytes];
+                    byte[] resultBuffer = new byte[bytes];
+
+                    System.Runtime.InteropServices.Marshal.Copy(inputData.Scan0, pixelBuffer, 0, bytes);
+                    input.UnlockBits(inputData);
+
+                    for (int i = 0; i < pixelBuffer.Length; i += 3)
+                    {
+                        byte b = pixelBuffer[i];
+                        byte g = pixelBuffer[i + 1];
+                        byte r = pixelBuffer[i + 2];
+
+                        byte nr = r, ng = g, nb = b;
+
+                        switch (filter)
+                        {
+                            case FilterType.Grayscale:
+                                byte gray = (byte)((r + g + b) / 3);
+                                nr = ng = nb = gray;
+                                break;
+
+                            case FilterType.Invert:
+                                nr = (byte)(255 - r);
+                                ng = (byte)(255 - g);
+                                nb = (byte)(255 - b);
+                                break;
+
+                            case FilterType.Sepia:
+                                nr = (byte)Math.Min(255, (0.393 * r + 0.769 * g + 0.189 * b));
+                                ng = (byte)Math.Min(255, (0.349 * r + 0.686 * g + 0.168 * b));
+                                nb = (byte)Math.Min(255, (0.272 * r + 0.534 * g + 0.131 * b));
+                                break;
+                        }
+
+                        resultBuffer[i] = nb;
+                        resultBuffer[i + 1] = ng;
+                        resultBuffer[i + 2] = nr;
+                    }
+
+                    System.Runtime.InteropServices.Marshal.Copy(resultBuffer, 0, outputData.Scan0, bytes);
+                    output.UnlockBits(outputData);
+                    break;
             }
 
-            System.Runtime.InteropServices.Marshal.Copy(resultBuffer, 0, outputData.Scan0, bytes);
-            output.UnlockBits(outputData);
+            return output;
+        }
 
+
+        private Bitmap ApplyConvolution(Bitmap source, double[,] kernel, double factor = 1.0, int bias = 0)
+        {
+            Bitmap output = new Bitmap(source.Width, source.Height);
+
+            int width = source.Width;
+            int height = source.Height;
+            int kernelSize = 3;
+
+            //MessageBox.Show("Convolution called!");
+
+            for (int y = 1; y < height - 1; y++)
+            {
+                for (int x = 1; x < width - 1; x++)
+                {
+                    double r = 0.0, g = 0.0, b = 0.0;
+
+                    for (int ky = 0; ky < kernelSize; ky++)
+                    {
+                        for (int kx = 0; kx < kernelSize; kx++)
+                        {
+                            int px = x + (kx - 1);
+                            int py = y + (ky - 1);
+
+                            Color pixel = source.GetPixel(px, py);
+
+                            r += pixel.R * kernel[ky, kx];
+                            g += pixel.G * kernel[ky, kx];
+                            b += pixel.B * kernel[ky, kx];
+                        }
+                    }
+
+                    int rr = Math.Min(Math.Max((int)(factor * r + bias), 0), 255);
+                    int gg = Math.Min(Math.Max((int)(factor * g + bias), 0), 255);
+                    int bb = Math.Min(Math.Max((int)(factor * b + bias), 0), 255);
+
+                    output.SetPixel(x, y, Color.FromArgb(rr, gg, bb));
+                }
+            }
+
+            //MessageBox.Show("Convolution results!");
             return output;
         }
 
@@ -587,6 +729,124 @@ namespace ImageProcessor
             }
         }
 
+        private void smoothToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.Smooth;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void gaussianBlurToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.GaussianBlur;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void sharpenToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.Sharpen;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void meanRemovalToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.MeanRemoval;
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void horzVerticalToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.HorzVertical;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void allDirectionsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.AllDirections;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void embosToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.Emboss;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void lossyToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.Lossy;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void horizontalToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.HorizontalOnly;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
+
+        private void verticalToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            currentFilter = FilterType.VerticalOnly;
+
+            if (pictureBox1.Image != null)
+            {
+                Bitmap input = new Bitmap(pictureBox1.Image);
+                pictureBox2.Image?.Dispose();
+                pictureBox2.Image = ApplyFilterFast(input, currentFilter);
+            }
+        }
 
         private Bitmap ApplyFilter(Bitmap source, FilterType filter)
         {
